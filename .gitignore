@@ -1,0 +1,4 @@
+/cmd/cli/cli
+/cmd/gw/gw
+/cmd/svr/svr
+.vscode
