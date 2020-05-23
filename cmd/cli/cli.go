@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/resolver"
 
 	"github.com/sirupsen/logrus"
+	"github.com/yxyc/grpclb/balancer"
 	pb "github.com/yxyc/grpclb/cmd/helloworld"
 	grpclb "github.com/yxyc/grpclb/etcdv3"
 )
@@ -28,7 +28,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	// https://github.com/grpc/grpc/blob/master/doc/naming.md
 	// The gRPC client library will use the specified scheme to pick the right resolver plugin and pass it the fully qualified name string.
-	conn, err := grpc.DialContext(ctx, r.Scheme()+"://authority/"+*svc, grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name), grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, r.Scheme()+"://authority/"+*svc, grpc.WithInsecure(), grpc.WithBalancerName(balancer.RoundRobin), grpc.WithBlock())
 	cancel()
 	if err != nil {
 		panic(err)
