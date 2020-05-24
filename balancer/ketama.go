@@ -10,92 +10,97 @@ import (
 type HashFunc func(data []byte) uint32
 
 const (
-	DefaultReplicas = 10
-	Salt            = "n*@if09g3n"
+	defaultReplicas = 10
+	salt            = "n*@if09g3n"
 )
 
-func DefaultHash(data []byte) uint32 {
+type Uint32Slice []uint32
+
+func (p Uint32Slice) Len() int           { return len(p) }
+func (p Uint32Slice) Less(i, j int) bool { return p[i] < p[j] }
+func (p Uint32Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p Uint32Slice) Sort()              { sort.Sort(p) }
+func sortUint32s(a []uint32)             { sort.Sort(Uint32Slice(a)) }
+
+func defaultHash(data []byte) uint32 {
 	f := fnv.New32()
 	_, _ = f.Write(data)
 	return f.Sum32()
 }
 
 type Ketama struct {
-	sync.Mutex
+	mu       sync.RWMutex
 	hash     HashFunc
 	replicas int
-	keys     []int
-	hashMap  map[int]string
+	keys     []uint32
+	buckets  map[uint32]string
 }
 
-func NewKetama(replicas int, fn HashFunc) *Ketama {
+func NewKetama(replicas int, hash HashFunc) *Ketama {
 	h := &Ketama{
 		replicas: replicas,
-		hash:     fn,
-		hashMap:  make(map[int]string),
+		hash:     hash,
+		buckets:  make(map[uint32]string),
 	}
 	if h.replicas <= 0 {
-		h.replicas = DefaultReplicas
+		h.replicas = defaultReplicas
 	}
 	if h.hash == nil {
-		h.hash = DefaultHash
+		h.hash = defaultHash
 	}
 	return h
 }
 
 func (h *Ketama) IsEmpty() bool {
-	h.Lock()
-	defer h.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	return len(h.keys) == 0
 }
 
 func (h *Ketama) Add(nodes ...string) {
-	h.Lock()
-	defer h.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	for _, node := range nodes {
 		for i := 0; i < h.replicas; i++ {
-			key := int(h.hash([]byte(Salt + strconv.Itoa(i) + node)))
-
-			if _, ok := h.hashMap[key]; !ok {
+			key := h.hash([]byte(salt + strconv.Itoa(i) + node))
+			if _, ok := h.buckets[key]; !ok {
 				h.keys = append(h.keys, key)
 			}
-			h.hashMap[key] = node
+			h.buckets[key] = node
 		}
 	}
-	sort.Ints(h.keys)
+	sortUint32s(h.keys)
 }
 
 func (h *Ketama) Remove(nodes ...string) {
-	h.Lock()
-	defer h.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-	deletedKey := make([]int, 0)
+	var deletedKeys []uint32
 	for _, node := range nodes {
 		for i := 0; i < h.replicas; i++ {
-			key := int(h.hash([]byte(Salt + strconv.Itoa(i) + node)))
-
-			if _, ok := h.hashMap[key]; ok {
-				deletedKey = append(deletedKey, key)
-				delete(h.hashMap, key)
+			key := h.hash([]byte(salt + strconv.Itoa(i) + node))
+			if _, ok := h.buckets[key]; ok {
+				deletedKeys = append(deletedKeys, key)
+				delete(h.buckets, key)
 			}
 		}
 	}
-	if len(deletedKey) > 0 {
-		h.deleteKeys(deletedKey)
+	if len(deletedKeys) > 0 {
+		h.deleteKeys(deletedKeys)
 	}
 }
 
-func (h *Ketama) deleteKeys(deletedKeys []int) {
-	sort.Ints(deletedKeys)
+func (h *Ketama) deleteKeys(deletedKeys []uint32) {
+	sortUint32s(deletedKeys)
 
-	index := 0
-	count := 0
+	var index int
+	var count int
 	for _, key := range deletedKeys {
 		for ; index < len(h.keys); index++ {
 			h.keys[index-count] = h.keys[index]
-
 			if key == h.keys[index] {
 				count++
 				index++
@@ -103,7 +108,6 @@ func (h *Ketama) deleteKeys(deletedKeys []int) {
 			}
 		}
 	}
-
 	for ; index < len(h.keys); index++ {
 		h.keys[index-count] = h.keys[index]
 	}
@@ -115,19 +119,18 @@ func (h *Ketama) Get(key string) (string, bool) {
 	if h.IsEmpty() {
 		return "", false
 	}
+	hash := h.hash([]byte(key))
 
-	hash := int(h.hash([]byte(key)))
-
-	h.Lock()
-	defer h.Unlock()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 
 	idx := sort.Search(len(h.keys), func(i int) bool {
 		return h.keys[i] >= hash
 	})
-
 	if idx == len(h.keys) {
 		idx = 0
 	}
-	str, ok := h.hashMap[h.keys[idx]]
-	return str, ok
+	value, ok := h.buckets[h.keys[idx]]
+
+	return value, ok
 }
