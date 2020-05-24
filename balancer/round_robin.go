@@ -9,7 +9,6 @@ import (
 
 const RoundRobin = "round_robin"
 
-// newRoundRobinBuilder creates a new roundrobin balancer builder.
 func newRoundRobinBuilder() balancer.Builder {
 	return base.NewBalancerBuilderV2(Random, &roundRobinPickerBuilder{}, base.Config{HealthCheck: true})
 }

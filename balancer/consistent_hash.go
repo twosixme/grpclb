@@ -18,7 +18,6 @@ func InitConsistentHashBuilder(consistanceHashKey string) {
 	balancer.Register(newConsistentHashBuilder(consistanceHashKey))
 }
 
-// newConsistanceHashBuilder creates a new ConsistanceHash balancer builder.
 func newConsistentHashBuilder(consistentHashKey string) balancer.Builder {
 	return base.NewBalancerBuilderV2(ConsistentHash, &consistentHashPickerBuilder{consistentHashKey}, base.Config{HealthCheck: true})
 }

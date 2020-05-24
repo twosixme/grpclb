@@ -9,7 +9,6 @@ import (
 
 const Random = "random"
 
-// newRandomBuilder creates a new random balancer builder
 func newRandomBuilder() balancer.Builder {
 	return base.NewBalancerBuilderV2(Random, &randomPickerBuilder{}, base.Config{HealthCheck: true})
 }
