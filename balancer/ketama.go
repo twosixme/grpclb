@@ -51,13 +51,6 @@ func NewKetama(replicas int, hash HashFunc) *Ketama {
 	return h
 }
 
-func (h *Ketama) IsEmpty() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	return len(h.keys) == 0
-}
-
 func (h *Ketama) Add(nodes ...string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -116,13 +109,13 @@ func (h *Ketama) deleteKeys(deletedKeys []uint32) {
 }
 
 func (h *Ketama) Get(key string) (string, bool) {
-	if h.IsEmpty() {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if len(h.keys) == 0 {
 		return "", false
 	}
 	hash := h.hash([]byte(key))
-
-	h.mu.RLock()
-	defer h.mu.RUnlock()
 
 	idx := sort.Search(len(h.keys), func(i int) bool {
 		return h.keys[i] >= hash
